@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Holographic Speech Recognition</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            text-align: center;
+            max-width: 500px;
+            width: 100%;
+        }
+
+        .logo {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        h1 {
+            font-size: 1.8em;
+            margin-bottom: 30px;
+            font-weight: 300;
+        }
+
+        .auth-form {
+            margin-bottom: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        input[type="password"], input[type="text"] {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            font-size: 16px;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        input[type="password"]::placeholder, input[type="text"]::placeholder {
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        input[type="password"]:focus, input[type="text"]:focus {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.02);
+        }
+
+        .btn {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+            border: none;
+            padding: 15px 30px;
+            border-radius: 50px;
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 10px;
+            min-width: 120px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255, 107, 107, 0.4);
+        }
+
+        .btn:disabled {
+            background: linear-gradient(45deg, #95a5a6, #7f8c8d);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn.recording {
+            background: linear-gradient(45deg, #e74c3c, #c0392b);
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 10px;
+            font-weight: 500;
+        }
+
+        .status.connected {
+            background: rgba(46, 204, 113, 0.2);
+            border: 1px solid rgba(46, 204, 113, 0.5);
+        }
+
+        .status.error {
+            background: rgba(231, 76, 60, 0.2);
+            border: 1px solid rgba(231, 76, 60, 0.5);
+        }
+
+        .status.info {
+            background: rgba(52, 152, 219, 0.2);
+            border: 1px solid rgba(52, 152, 219, 0.5);
+        }
+
+        .transcript {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            min-height: 100px;
+            text-align: left;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .recording-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            background: #e74c3c;
+            border-radius: 50%;
+            margin-left: 10px;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0.3; }
+        }
+
+        .audio-levels {
+            margin: 20px 0;
+        }
+
+        .level-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .level-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #2ecc71, #f1c40f, #e74c3c);
+            width: 0%;
+            transition: width 0.1s ease;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px;
+                margin: 10px;
+            }
+            
+            h1 {
+                font-size: 1.5em;
+            }
+            
+            .btn {
+                padding: 12px 24px;
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">🎤</div>
+        <h1>Holographic Speech Recognition</h1>
+        
+        <!-- Authentication Form -->
+        <div id="authForm" class="auth-form">
+            <div class="form-group">
+                <label for="serverUrl">Server URL:</label>
+                <input type="text" id="serverUrl" placeholder="ws://localhost:8765" value="ws://localhost:8765">
+            </div>
+            <div class="form-group">
+                <label for="password">Password:</label>
+                <input type="password" id="password" placeholder="Enter password">
+            </div>
+            <button class="btn" onclick="connect()">Connect</button>
+        </div>
+
+        <!-- Main Interface -->
+        <div id="mainInterface" class="hidden">
+            <div id="status" class="status info">Ready to record...</div>
+            
+            <div class="audio-levels">
+                <div class="level-bar">
+                    <div id="levelFill" class="level-fill"></div>
+                </div>
+            </div>
+            
+            <button id="recordBtn" class="btn" onclick="toggleRecording()">
+                🎙️ Start Recording
+            </button>
+            
+            <button class="btn" onclick="disconnect()">Disconnect</button>
+            
+            <div id="transcript" class="transcript">
+                Transcript will appear here...
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let websocket = null;
+        let mediaRecorder = null;
+        let audioContext = null;
+        let analyser = null;
+        let microphone = null;
+        let isRecording = false;
+        let isConnected = false;
+
+        // Audio configuration
+        const SAMPLE_RATE = 16000;
+        const CHUNK_SIZE = 1024;
+
+        function updateStatus(message, type = 'info') {
+            const statusElement = document.getElementById('status');
+            statusElement.textContent = message;
+            statusElement.className = `status ${type}`;
+        }
+
+        function updateTranscript(text) {
+            document.getElementById('transcript').textContent = text;
+        }
+
+        function updateAudioLevel(level) {
+            const levelFill = document.getElementById('levelFill');
+            levelFill.style.width = `${level * 100}%`;
+        }
+
+        async function connect() {
+            const serverUrl = document.getElementById('serverUrl').value;
+            const password = document.getElementById('password').value;
+
+            if (!serverUrl || !password) {
+                updateStatus('Please enter server URL and password', 'error');
+                return;
+            }
+
+            try {
+                updateStatus('Connecting...', 'info');
+                
+                websocket = new WebSocket(serverUrl);
+                
+                websocket.onopen = function() {
+                    // Send authentication
+                    websocket.send(JSON.stringify({
+                        type: 'auth',
+                        password: password
+                    }));
+                };
+
+                websocket.onmessage = function(event) {
+                    const data = JSON.parse(event.data);
+                    
+                    switch(data.type) {
+                        case 'auth_success':
+                            isConnected = true;
+                            updateStatus('Connected successfully!', 'connected');
+                            document.getElementById('authForm').classList.add('hidden');
+                            document.getElementById('mainInterface').classList.remove('hidden');
+                            break;
+                            
+                        case 'auth_failed':
+                            updateStatus('Authentication failed: ' + data.message, 'error');
+                            websocket.close();
+                            break;
+                            
+                        case 'streaming_transcript':
+                            updateTranscript(data.text);
+                            
+                            // Show streaming status
+                            if (data.is_final) {
+                                updateStatus('Final transcript received', 'connected');
+                            } else {
+                                updateStatus('Streaming transcript...', 'connected');
+                            }
+                            break;
+                            
+                        case 'transcript':
+                            updateTranscript(data.text);
+                            break;
+                    }
+                };
+
+                websocket.onclose = function() {
+                    isConnected = false;
+                    updateStatus('Connection closed', 'error');
+                    if (isRecording) {
+                        stopRecording();
+                    }
+                };
+
+                websocket.onerror = function(error) {
+                    updateStatus('Connection error', 'error');
+                    console.error('WebSocket error:', error);
+                };
+
+            } catch (error) {
+                updateStatus('Failed to connect: ' + error.message, 'error');
+            }
+        }
+
+        function disconnect() {
+            if (websocket) {
+                websocket.close();
+            }
+            
+            if (isRecording) {
+                stopRecording();
+            }
+            
+            isConnected = false;
+            document.getElementById('authForm').classList.remove('hidden');
+            document.getElementById('mainInterface').classList.add('hidden');
+            updateStatus('Disconnected', 'info');
+        }
+
+        async function toggleRecording() {
+            if (isRecording) {
+                stopRecording();
+            } else {
+                await startRecording();
+            }
+        }
+
+        async function startRecording() {
+            if (!isConnected) {
+                updateStatus('Not connected to server', 'error');
+                return;
+            }
+
+            try {
+                // Request microphone permission
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        sampleRate: SAMPLE_RATE,
+                        channelCount: 1,
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    }
+                });
+
+                // Set up audio context for processing
+                audioContext = new (window.AudioContext || window.webkitAudioContext)({
+                    sampleRate: SAMPLE_RATE
+                });
+
+                microphone = audioContext.createMediaStreamSource(stream);
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 256;
+                microphone.connect(analyser);
+
+                // Set up audio level monitoring
+                const bufferLength = analyser.frequencyBinCount;
+                const dataArray = new Uint8Array(bufferLength);
+                
+                function updateLevels() {
+                    if (isRecording) {
+                        analyser.getByteFrequencyData(dataArray);
+                        const average = dataArray.reduce((a, b) => a + b) / bufferLength;
+                        updateAudioLevel(average / 255);
+                        requestAnimationFrame(updateLevels);
+                    }
+                }
+                updateLevels();
+
+                // Set up MediaRecorder for sending audio data
+                mediaRecorder = new MediaRecorder(stream, {
+                    mimeType: 'audio/webm;codecs=opus'
+                });
+
+                const audioChunks = [];
+                
+                mediaRecorder.ondataavailable = function(event) {
+                    if (event.data.size > 0) {
+                        audioChunks.push(event.data);
+                        
+                        // Convert and send audio chunk
+                        const reader = new FileReader();
+                        reader.onload = function() {
+                            const audioData = new Uint8Array(reader.result);
+                            const base64Audio = btoa(String.fromCharCode.apply(null, audioData));
+                            
+                            if (websocket && websocket.readyState === WebSocket.OPEN) {
+                                websocket.send(JSON.stringify({
+                                    type: 'audio_chunk',
+                                    audio: base64Audio
+                                }));
+                            }
+                        };
+                        reader.readAsArrayBuffer(event.data);
+                    }
+                };
+
+                mediaRecorder.start(100); // Collect data every 100ms
+                
+                // Notify server
+                websocket.send(JSON.stringify({
+                    type: 'start_recording'
+                }));
+
+                isRecording = true;
+                const recordBtn = document.getElementById('recordBtn');
+                recordBtn.textContent = '🛑 Stop Recording';
+                recordBtn.classList.add('recording');
+                
+                updateStatus('Recording... Speak now!', 'connected');
+                updateTranscript('Listening for speech...');
+
+            } catch (error) {
+                updateStatus('Failed to start recording: ' + error.message, 'error');
+                console.error('Recording error:', error);
+            }
+        }
+
+        function stopRecording() {
+            isRecording = false;
+            
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+            
+            if (audioContext) {
+                audioContext.close();
+            }
+            
+            if (websocket && websocket.readyState === WebSocket.OPEN) {
+                websocket.send(JSON.stringify({
+                    type: 'stop_recording'
+                }));
+            }
+
+            const recordBtn = document.getElementById('recordBtn');
+            recordBtn.textContent = '🎙️ Start Recording';
+            recordBtn.classList.remove('recording');
+            
+            updateStatus('Recording stopped', 'info');
+            updateAudioLevel(0);
+        }
+
+        // Handle page visibility change (pause recording when page is hidden)
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden && isRecording) {
+                stopRecording();
+                updateStatus('Recording paused (page hidden)', 'info');
+            }
+        });
+
+        // Auto-focus password field
+        window.addEventListener('load', function() {
+            document.getElementById('password').focus();
+        });
+
+        // Allow Enter key to connect
+        document.getElementById('password').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                connect();
+            }
+        });
+    </script>
+</body>
+</html>

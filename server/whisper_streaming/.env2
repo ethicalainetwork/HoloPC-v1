@@ -1,0 +1,8 @@
+# For Chinese to English translation
+SPEECH_PASSWORD=your_secure_password
+WHISPER_MODEL=small.zh
+SPEECH_LANGUAGE=zh
+TRANSLATE_TO=en
+WEBSOCKET_PORT=8765
+DISPLAY_SERVER_URL=http://localhost:3000
+LIBRETRANSLATE_URL=http://localhost:5000

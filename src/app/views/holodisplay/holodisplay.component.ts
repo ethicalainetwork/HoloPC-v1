@@ -1,0 +1,125 @@
+import { CommonModule } from '@angular/common';
+import { Component } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { debounceTime, fromEvent, map, Subject } from 'rxjs';
+import { SettingsComponent } from '../displays/standard-method/standard-settings/standard-settings.component';
+import { StandardDisplayComponent } from '../displays/standard-method/standard-display/standard-display.component';
+import { LanguageService } from 'src/app/services/i18n/language.service';
+import { TutorialService } from 'src/app/services/tutorial/tutorial.service';
+
+@Component({
+  selector: 'app-holodisplay',
+  standalone: true,
+  imports: [CommonModule, SettingsComponent, StandardDisplayComponent, FormsModule],
+  templateUrl: './holodisplay.component.html',
+  styleUrls: ['./holodisplay.component.scss']
+})
+export class HoloDisplayComponent {
+  selectedDisplayMethod = 'Standard Method';
+  iconsVisible = false;
+  iconsCanBeInvisible = true;
+  forceIconsVisible = false;
+  private isDarkFullscreen = false; // 🆕 ADD THIS LINE
+  mouseMoving$ = fromEvent(document, 'mousemove');
+  resizeEvent$: Subject<Event>;
+  doCalculation$ = new Subject<void>();
+  
+  readonly displayMethods: {name: string, component: any}[] = [
+    { name: 'Standard Method', component: StandardDisplayComponent }
+  ]
+  
+  constructor(public language: LanguageService, private tutorial: TutorialService) {
+    this.mouseMoving$.pipe(
+      map(() => this.iconsVisible = true),
+      debounceTime(2000),
+      map(() => this.iconsVisible = this.forceIconsVisible && !this.iconsCanBeInvisible),
+    ).subscribe();
+    
+    tutorial.tutorialEvents$.subscribe((event) => {
+      if(event == 'showButtons') {
+        this.forceIconsVisible = true;
+        this.iconsCanBeInvisible = false;
+        this.iconsVisible = true;
+      } else if(event == 'hideButtons') {
+        this.forceIconsVisible = false;
+        this.iconsCanBeInvisible = true;
+      }
+    });
+    
+    this.resizeEvent$ = new Subject<Event>();
+    
+    // 🆕 ADD THESE EVENT LISTENERS
+    // Listen for escape key to exit dark fullscreen
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && this.isDarkFullscreen) {
+        this.toggleDarkFullscreen();
+      }
+    });
+    
+    // Listen for fullscreen change events
+    document.addEventListener('fullscreenchange', () => {
+      if (!document.fullscreenElement && this.isDarkFullscreen) {
+        this.isDarkFullscreen = false;
+        document.body.style.backgroundColor = '';
+        document.body.style.overflow = '';
+      }
+    });
+  }
+  
+  onResize(event: Event) {
+    this.resizeEvent$.next(event);
+  }
+  
+  toggleModal(modalId: string): void {
+    if(!document.getElementById(modalId)) return;
+    document.getElementById(modalId)!.classList.toggle("hidden");
+  }
+  
+  startCurrentTutorial() {
+    switch(this.selectedDisplayMethod) {
+      case 'Standard Method':
+        this.tutorial.startTutorial('standardDisplay');
+        break;
+    }
+  }
+  
+  hideIcons() {
+    this.forceIconsVisible = false;
+    this.iconsVisible = this.forceIconsVisible && !this.iconsCanBeInvisible;
+  }
+  
+  toggleFullScreen() {
+    if(document.fullscreenElement) {
+      document.exitFullscreen();
+    } else {
+      document.documentElement.requestFullscreen();
+    }
+  }
+  
+  // 🆕 ADD THESE TWO NEW METHODS
+  toggleDarkFullscreen(): void {
+    this.isDarkFullscreen = !this.isDarkFullscreen;
+    
+    if (this.isDarkFullscreen) {
+      // Enter dark fullscreen
+      document.documentElement.requestFullscreen();
+      document.body.style.backgroundColor = '#000000';
+      document.body.style.overflow = 'hidden';
+      
+      // Hide icons in dark fullscreen mode
+      this.iconsVisible = false;
+      this.forceIconsVisible = false;
+    } else {
+      // Exit dark fullscreen
+      if (document.fullscreenElement) {
+        document.exitFullscreen();
+      }
+      document.body.style.backgroundColor = '';
+      document.body.style.overflow = '';
+    }
+  }
+  
+  isDarkFullscreenActive(): boolean {
+    return this.isDarkFullscreen;
+  }
+}

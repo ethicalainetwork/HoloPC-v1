@@ -1,0 +1,24 @@
+{
+  "generalSettings": {
+    "numberOfSides": 4,
+    "innerPolygonSize": 50
+  },
+  "fileSettings": [
+    {
+      "src": "https://hologram.kgabriel.dev/en-US/assets/images/default-image.png",
+      "fileName": "default-image.png",
+      "mimeType": "image/png",
+      "displayIndex": 0,
+      "scalingFactor": 15,
+      "position": 0,
+      "flips": {
+        "v": false,
+        "h": false
+      },
+      "rotation": 0,
+      "brightness": 100,
+      "metaData": {},
+      "framerate": 0
+    }
+  ]
+}

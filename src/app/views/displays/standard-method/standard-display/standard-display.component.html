@@ -1,0 +1,443 @@
+<div class="flex justify-center align-center h-full" #container>
+    <canvas #displayCanvas id="displayCanvas" class="bg-black block m-auto aspect-square"></canvas>
+    
+    <!-- Screen Streaming Controls -->
+    <div class="absolute top-4 left-4 z-50 bg-black bg-opacity-80 p-3 rounded-lg text-white" *ngIf="!menuHidden">
+        <div class="flex flex-col gap-2 mb-3">
+            <!-- Screen Streaming Button -->
+            <button 
+                class="px-4 py-2 rounded font-medium transition-all duration-200"
+                [class]="isScreenStreamingActive() ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'"
+                (click)="toggleScreenStreaming()">
+                {{ isScreenStreamingActive() ? 'Stop Screen Stream' : 'Start Screen Stream' }}
+            </button>
+            
+            <!-- Speech Interface Button - Primary Speech Control -->
+            <button 
+                class="px-4 py-2 rounded font-medium transition-all duration-200 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white text-sm flex items-center justify-center gap-2"
+                (click)="toggleModal('speechInterfaceModal')"
+                title="Connect to speech recognition and start microphone">
+                <span>🎤</span>
+                <span>Speech Interface</span>
+                <span *ngIf="speechInterface.isConnected" class="inline-block w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                <span *ngIf="speechInterface.isRecording" class="inline-block w-2 h-2 bg-red-400 rounded-full animate-pulse"></span>
+            </button>
+            
+            <!-- Speech Streaming Button - Only enabled when speech is ready -->
+            <button 
+                class="px-4 py-2 rounded font-medium transition-all duration-200 relative"
+                [class]="{
+                  'bg-red-600 hover:bg-red-700': isSpeechStreamingActive(),
+                  'bg-purple-600 hover:bg-purple-700': !isSpeechStreamingActive() && speechInterface.isConnected && speechInterface.isRecording,
+                  'bg-gray-500 cursor-not-allowed': !speechInterface.isConnected || !speechInterface.isRecording
+                }"
+                [disabled]="!speechInterface.isConnected || !speechInterface.isRecording"
+                (click)="toggleSpeechStreaming()"
+                title="{{ getSpeechStreamButtonTooltip() }}">
+                <span>📺</span>
+                {{ isSpeechStreamingActive() ? 'Stop Speech Display' : 'Display Speech on Screen' }}
+                
+                <!-- Status indicators -->
+                <div *ngIf="!speechInterface.isConnected || !speechInterface.isRecording" 
+                     class="absolute -top-2 -right-2 bg-yellow-500 text-black text-xs px-2 py-1 rounded-full">
+                  {{ !speechInterface.isConnected ? 'Not Connected' : 'Not Recording' }}
+                </div>
+            </button>
+        </div>
+        
+        <!-- Quick Status Display -->
+        <div class="bg-gray-800 bg-opacity-50 rounded p-2 mb-3 text-xs">
+          <div class="flex items-center justify-between mb-1">
+            <span>Speech Status:</span>
+            <span [class]="{
+              'text-green-400': speechInterface.isConnected && speechInterface.isRecording,
+              'text-yellow-400': speechInterface.isConnected && !speechInterface.isRecording,
+              'text-red-400': !speechInterface.isConnected
+            }">
+              {{ getSpeechStatusText() }}
+            </span>
+          </div>
+          <div *ngIf="speechInterface.isRecording" class="flex items-center justify-between">
+            <span>Audio Level:</span>
+            <div class="w-16 h-1 bg-white bg-opacity-20 rounded-full overflow-hidden">
+              <div class="h-full bg-gradient-to-r from-green-400 to-red-400 transition-all duration-100"
+                   [style.width.%]="speechInterface.audioLevel * 100"></div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="flex gap-2 mb-2">
+            <button 
+                class="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded font-medium transition-all duration-200 text-sm"
+                (click)="toggleModal('streamConfigModal')">
+                ⚙️ Config
+            </button>
+            
+            <button 
+                class="px-3 py-2 bg-gray-600 hover:bg-gray-700 rounded font-medium transition-all duration-200 text-sm"
+                (click)="saveDebugScreenshot()"
+                title="Test screenshot API">
+                📸 Test
+            </button>
+            
+            <button 
+                class="px-3 py-2 bg-orange-600 hover:bg-orange-700 rounded font-medium transition-all duration-200 text-sm"
+                (click)="testServerConnection()"
+                title="Test server connection">
+                🔍 Server
+            </button>
+        </div>
+        
+        <!-- Hide Menu Button -->
+        <button 
+            class="w-full px-3 py-2 bg-gray-800 hover:bg-gray-700 rounded font-medium transition-all duration-200 text-sm border border-gray-600"
+            (click)="toggleMenuVisibility()"
+            title="Hide menu">
+            👁️ Hide Menu
+        </button>
+        
+        <!-- Streaming Status -->
+        <div *ngIf="isScreenStreamingActive() || isSpeechStreamingActive()" class="mt-2 text-center">
+            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-600 text-white">
+                <span class="w-2 h-2 bg-white rounded-full mr-2 animate-pulse"></span>
+                {{ getCurrentStreamingMode().toUpperCase() }} STREAMING
+            </span>
+            <div class="mt-1 text-xs text-gray-300">
+                Items: {{ getGifStats().count }} ({{ getGifStats().totalSizeMB }}MB)
+            </div>
+            <div *ngIf="isSpeechStreamingActive()" class="mt-1 text-xs text-purple-300">
+                🎤 Real-time Speech Display Active
+            </div>
+        </div>
+    </div>
+    
+    <!-- Collapsed Menu Icon (when hidden) -->
+    <div class="absolute top-4 left-4 z-50" *ngIf="menuHidden">
+        <button 
+            class="bg-black bg-opacity-80 hover:bg-opacity-100 p-3 rounded-full text-white transition-all duration-200 shadow-lg"
+            (click)="toggleMenuVisibility()"
+            title="Show streaming menu">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+            </svg>
+        </button>
+        
+        <!-- Show streaming status when menu is hidden -->
+        <div *ngIf="isScreenStreamingActive() || isSpeechStreamingActive()" class="mt-2">
+            <div class="bg-black bg-opacity-80 px-2 py-1 rounded text-xs text-white">
+                <span class="inline-flex items-center">
+                    <span class="w-2 h-2 bg-red-500 rounded-full mr-1 animate-pulse"></span>
+                    {{ getCurrentStreamingMode().toUpperCase() }}
+                </span>
+            </div>
+        </div>
+        
+        <!-- Speech status when menu is hidden -->
+        <div *ngIf="speechInterface.isConnected" class="mt-1">
+            <div class="bg-purple-600 bg-opacity-80 px-2 py-1 rounded text-xs text-white">
+                <span class="inline-flex items-center">
+                    <span class="w-2 h-2 rounded-full mr-1"
+                          [class]="speechInterface.isRecording ? 'bg-red-400 animate-pulse' : 'bg-green-400'"></span>
+                    🎤
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Calculator Extra Settings Modal -->
+<div class="hidden overflow-x-hidden overflow-y-auto fixed inset-0 z-50 outline-none focus:outline-none" id="calculatorExtraSettingsModal">
+  <div class="relative w-auto my-6 mx-auto max-w-3xl">
+    <!--content-->
+    <div class="border-0 rounded-lg shadow-lg relative flex flex-col w-full bg-white outline-none focus:outline-none">
+      <!--header-->
+      <div class="flex items-start justify-between p-5 border-b border-solid border-slate-200 rounded-t">
+        <h3 class="text-3xl font-semibold">
+          Extra values used by the calculator
+        </h3>
+      </div>
+      <!--body-->
+      <div class="relative p-6 flex-auto">
+        <p class="my-4 text-slate-500 text-lg leading-relaxed">
+          This calculator calculates the size of the trapezes you need to build your mirror. Therefore it uses the settings from the Settings Menu as far as possible, but some values are not available there. You can set them here.
+        </p>
+        <div>
+          <h4 class="underline">DPI / PPI</h4>
+          <p>Here you can set the physical DPI (or PPI) of your display. You can either look this value up or calculate is using your screen size and resolution.</p>
+          <input type="number" class="w-full border border-slate-200 rounded p-2" placeholder="DPI / PPI" [(ngModel)]="calculatorDPI" />
+        </div>
+        <br>
+        <div>
+          <h4 class="underline">JS Pixel Ratio</h4>
+          <p>The JavaScript pixel ratio represents the ratio of the size of one CSS pixel to the size of one physical pixel on your device. The default value should be correct, but you can double check it on websites like <a href="http://mydevice.io">mydevice.io</a>.</p>
+          <input type="number" class="w-full border border-slate-200 rounded p-2" placeholder="JS Pixel Ratio" [(ngModel)]="calculatorJsPixelRatio" />
+        </div>
+        <br>
+        <div>
+          <h4 class="underline">Slope</h4>
+          <p>This is the angle by which the mirror is tilted. A greater angle means that you look on the mirror from a higher position. A lower angle means a lower viewing point. The value of 45 degrees means that you look at it in one line with the table.</p>
+          <input type="number" class="w-full border border-slate-200 rounded p-2" placeholder="Slope angle value" [(ngModel)]="calculatorSlope" />
+        </div>
+      </div>
+      <!--footer-->
+      <div class="flex items-center justify-end p-6 border-t border-solid border-slate-200 rounded-b">
+        <button class="text-red-500 background-transparent font-bold uppercase px-6 py-2 text-sm outline-none focus:outline-none mr-1 mb-1 ease-linear transition-all duration-150" type="button" (click)="toggleModal('calculatorExtraSettingsModal')">
+          Close
+        </button>
+        <button class="bg-emerald-500 text-white active:bg-emerald-600 font-bold uppercase text-sm px-6 py-3 rounded shadow hover:shadow-lg outline-none focus:outline-none mr-1 mb-1 ease-linear transition-all duration-150" type="button" (click)="toggleModal('calculatorExtraSettingsModal'); onCalculateClick()">
+          Generate image
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Calculator Download Modal -->
+<div class="hidden overflow-x-hidden overflow-y-auto fixed inset-0 z-50 outline-none focus:outline-none" id="calculatorDownloadModal">
+  <div class="relative w-auto my-6 mx-auto max-w-3xl">
+    <!--content-->
+    <div class="border-0 rounded-lg shadow-lg relative flex flex-col w-full bg-white outline-none focus:outline-none">
+      <!--header-->
+      <div class="flex items-start justify-between p-5 border-b border-solid border-slate-200 rounded-t">
+        <h3 class="text-3xl font-semibold">
+          The calculated image showing the trapeze
+        </h3>
+      </div>
+      <!--body-->
+      <div class="relative p-6 flex-auto">
+        <p class="my-4 text-slate-500 text-lg leading-relaxed">
+          The image you can download here shows the template to build your mirror. You will need {{ settingsBroker.getSettings().generalSettings.numberOfSides }} of these trapezes. The image is generated using the values you entered in the Settings Menu. If you want to change these values, please go back to the Settings Menu.
+        </p>
+        <p class="my-4 text-slate-500 tx-lg leading-relaxed">
+          Make sure to print the image at the correct size. The image is {{ (calculatorImageWidthPx / calculatorDPI).toFixed(2) }} x {{ (calculatorImageHeightPx / calculatorDPI).toFixed(2) }} inches or {{ ((calculatorImageWidthPx * calculatorJsPixelRatio / calculatorDPI) * 2.54).toFixed(2) }} x {{ ((calculatorImageHeightPx * calculatorJsPixelRatio / calculatorDPI) * 2.54).toFixed(2) }} cm.
+          <br>
+          This often means to scale the image to more than 100% of its original size. If you print the image at 100% of its original size, it can be too small. Make sure to use the correct size.
+        </p>
+      </div>
+      <!--footer-->
+      <div class="flex items-center justify-end p-6 border-t border-solid border-slate-200 rounded-b">
+        <button class="text-red-500 background-transparent font-bold uppercase px-6 py-2 text-sm outline-none focus:outline-none mr-1 mb-1 ease-linear transition-all duration-150" type="button" (click)="toggleModal('calculatorDownloadModal')">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Stream Configuration Modal -->
+<div class="hidden overflow-x-hidden overflow-y-auto fixed inset-0 z-50 outline-none focus:outline-none" id="streamConfigModal">
+  <div class="relative w-auto my-6 mx-auto max-w-3xl">
+    <!--content-->
+    <div class="border-0 rounded-lg shadow-lg relative flex flex-col w-full bg-white outline-none focus:outline-none">
+      <!--header-->
+      <div class="flex items-start justify-between p-5 border-b border-solid border-slate-200 rounded-t">
+        <h3 class="text-3xl font-semibold">
+          Streaming Configuration
+        </h3>
+      </div>
+      <!--body-->
+      <div class="relative p-6 flex-auto">
+        <p class="my-4 text-slate-500 text-lg leading-relaxed">
+          Configure the streaming settings for both screen capture and speech-to-text display modes.
+        </p>
+        
+        <div class="mb-6">
+          <h4 class="text-lg font-semibold mb-2 text-gray-700">Quality</h4>
+          <p class="text-sm text-gray-600 mb-3">Higher quality means better image resolution but requires more bandwidth and processing power.</p>
+          <select class="w-full border border-slate-200 rounded p-3 text-gray-700" [(ngModel)]="streamConfig.quality">
+            <option value="low">Low (480p) - Fast, low bandwidth</option>
+            <option value="medium">Medium (720p) - Balanced</option>
+            <option value="high">High (1080p) - Best quality</option>
+          </select>
+        </div>
+        
+        <div class="mb-6">
+          <h4 class="text-lg font-semibold mb-2 text-gray-700">Frame Rate</h4>
+          <p class="text-sm text-gray-600 mb-3">Higher frame rates provide smoother updates. Speech display uses optimized rates automatically.</p>
+          <select class="w-full border border-slate-200 rounded p-3 text-gray-700" [(ngModel)]="streamConfig.fps">
+            <option [value]="1">1 FPS - Very slow updates (good for speech)</option>
+            <option [value]="2">2 FPS - Slow updates (ideal for speech)</option>
+            <option [value]="5">5 FPS - Moderate updates</option>
+            <option [value]="10">10 FPS - Smooth updates (good for screen)</option>
+            <option [value]="15">15 FPS - Very smooth updates</option>
+            <option [value]="30">30 FPS - Ultra smooth (high resource usage)</option>
+          </select>
+        </div>
+        
+        <div class="mb-6">
+          <h4 class="text-lg font-semibold mb-2 text-gray-700">Format</h4>
+          <p class="text-sm text-gray-600 mb-3">Choose the streaming format based on your needs.</p>
+          <select class="w-full border border-slate-200 rounded p-3 text-gray-700" [(ngModel)]="streamConfig.format">
+            <option value="gif">GIF - Best for holographic display, larger file size</option>
+            <option value="webm">WebM - Good quality, smaller file size</option>
+            <option value="mp4">MP4 - Best compatibility, moderate file size</option>
+          </select>
+        </div>
+        
+        <div class="bg-blue-50 border-l-4 border-blue-400 p-4 rounded">
+          <div class="flex">
+            <div class="flex-shrink-0">
+              <svg class="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+              </svg>
+            </div>
+            <div class="ml-3">
+              <h3 class="text-sm font-medium text-blue-800">Unified Speech Workflow</h3>
+              <div class="mt-2 text-sm text-blue-700">
+                <p><strong>Step 1:</strong> Use "Speech Interface" to connect WebSocket and start microphone</p>
+                <p><strong>Step 2:</strong> Use "Display Speech on Screen" to show transcripts on holographic display</p>
+                <p><strong>Requirements:</strong> Python backend running on ws://localhost:8765</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!--footer-->
+      <div class="flex items-center justify-end p-6 border-t border-solid border-slate-200 rounded-b">
+        <button class="text-red-500 background-transparent font-bold uppercase px-6 py-2 text-sm outline-none focus:outline-none mr-1 mb-1 ease-linear transition-all duration-150" type="button" (click)="toggleModal('streamConfigModal')">
+          Cancel
+        </button>
+        <button class="bg-blue-500 text-white active:bg-blue-600 font-bold uppercase text-sm px-6 py-3 rounded shadow hover:shadow-lg outline-none focus:outline-none mr-1 mb-1 ease-linear transition-all duration-150" type="button" (click)="applyStreamConfig()">
+          Apply Settings
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ENHANCED: Speech Interface Modal -->
+<div class="hidden overflow-x-hidden overflow-y-auto fixed inset-0 z-50 outline-none focus:outline-none" id="speechInterfaceModal">
+  <div class="relative w-auto my-6 mx-auto max-w-lg">
+    <!--content-->
+    <div class="border-0 rounded-lg shadow-lg relative flex flex-col w-full bg-gradient-to-br from-blue-900 to-purple-900 outline-none focus:outline-none text-white">
+      <!--header-->
+      <div class="flex items-start justify-between p-5 border-b border-solid border-white border-opacity-20 rounded-t">
+        <h3 class="text-2xl font-light flex items-center">
+          <span class="text-3xl mr-3">🎤</span>
+          Speech Recognition Interface
+        </h3>
+        <button 
+          class="text-white hover:text-red-400 text-2xl leading-none font-semibold outline-none focus:outline-none" 
+          type="button" 
+          (click)="toggleModal('speechInterfaceModal')">
+          ×
+        </button>
+      </div>
+      <!--body-->
+      <div class="relative p-6 flex-auto">
+        <!-- Workflow Instructions -->
+        <div class="bg-blue-800 bg-opacity-30 rounded-lg p-4 mb-4 text-sm">
+          <h4 class="font-semibold mb-2">📋 Speech Workflow:</h4>
+          <ol class="list-decimal list-inside space-y-1 text-blue-200">
+            <li>Connect to Python backend (ws://localhost:8765)</li>
+            <li>Start microphone recording</li>
+            <li>Close this modal and click "Display Speech on Screen"</li>
+            <li>See real-time transcripts on holographic display!</li>
+          </ol>
+        </div>
+
+        <!-- Connection Form (when not connected) -->
+        <div *ngIf="!speechInterface.isConnected" class="space-y-4">
+          <div>
+            <label class="block text-white mb-2 font-medium">WebSocket Server URL:</label>
+            <input 
+              type="text" 
+              [(ngModel)]="speechInterface.serverUrl"
+              class="w-full p-3 rounded-lg bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-70 border-none outline-none focus:bg-opacity-30 transition-all"
+              placeholder="ws://localhost:8765">
+          </div>
+          <div>
+            <label class="block text-white mb-2 font-medium">Password:</label>
+            <input 
+              type="password" 
+              [(ngModel)]="speechInterface.password"
+              (keyup.enter)="connectSpeechInterface()"
+              class="w-full p-3 rounded-lg bg-white bg-opacity-20 text-white placeholder-white placeholder-opacity-70 border-none outline-none focus:bg-opacity-30 transition-all"
+              placeholder="Enter password">
+          </div>
+          <button
+            (click)="connectSpeechInterface()"
+            class="w-full bg-gradient-to-r from-green-500 to-blue-500 text-white px-6 py-3 rounded-full font-semibold hover:from-green-600 hover:to-blue-600 transition-all transform hover:scale-105">
+            🔌 Connect to Python Backend
+          </button>
+        </div>
+
+        <!-- Main Interface (when connected) -->
+        <div *ngIf="speechInterface.isConnected" class="space-y-4">
+          <!-- Connection Status -->
+          <div class="bg-green-500 bg-opacity-20 border border-green-500 border-opacity-50 p-3 rounded-lg">
+            <div class="flex items-center">
+              <span class="text-green-400 text-xl mr-2">✅</span>
+              <span class="font-medium">Connected to Python Backend</span>
+            </div>
+          </div>
+
+          <!-- Current Status -->
+          <div 
+            class="p-3 rounded-lg font-medium"
+            [ngClass]="{
+              'bg-green-500 bg-opacity-20 border border-green-500 border-opacity-50': speechInterface.status.includes('Connected') || speechInterface.status.includes('Recording') || speechInterface.status.includes('transcript'),
+              'bg-red-500 bg-opacity-20 border border-red-500 border-opacity-50': speechInterface.status.includes('error') || speechInterface.status.includes('failed') || speechInterface.status.includes('closed'),
+              'bg-blue-500 bg-opacity-20 border border-blue-500 border-opacity-50': !speechInterface.status.includes('Connected') && !speechInterface.status.includes('error')
+            }">
+            {{ speechInterface.status }}
+          </div>
+
+          <!-- Audio Level -->
+          <div class="space-y-2" *ngIf="speechInterface.isRecording">
+            <div class="flex justify-between text-white text-sm">
+              <span>Microphone Level:</span>
+              <span>{{ (speechInterface.audioLevel * 100).toFixed(0) }}%</span>
+            </div>
+            <div class="w-full h-3 bg-white bg-opacity-20 rounded-full overflow-hidden">
+              <div 
+                class="h-full bg-gradient-to-r from-green-400 via-yellow-400 to-red-400 transition-all duration-100 rounded-full"
+                [style.width.%]="speechInterface.audioLevel * 100">
+              </div>
+            </div>
+          </div>
+
+          <!-- Control Buttons -->
+          <div class="flex space-x-3">
+            <button
+              (click)="toggleSpeechRecording()"
+              [ngClass]="{
+                'bg-gradient-to-r from-red-500 to-red-600 text-white animate-pulse': speechInterface.isRecording,
+                'bg-gradient-to-r from-green-500 to-blue-500 text-white hover:from-green-600 hover:to-blue-600': !speechInterface.isRecording
+              }"
+              class="flex-1 px-4 py-3 rounded-full font-semibold transition-all transform hover:scale-105">
+              {{ speechInterface.isRecording ? '🛑 Stop Recording' : '🎙️ Start Recording' }}
+              <span *ngIf="speechInterface.isRecording" class="inline-block w-3 h-3 bg-red-400 rounded-full ml-2 animate-pulse"></span>
+            </button>
+            
+            <button
+              (click)="disconnectSpeechInterface()"
+              class="px-4 py-3 rounded-full font-semibold bg-gray-600 text-white hover:bg-gray-700 transition-all">
+              Disconnect
+            </button>
+          </div>
+
+          <!-- Live Transcript Display -->
+          <div class="bg-black bg-opacity-40 rounded-lg p-4 min-h-32 text-left border border-white border-opacity-20">
+            <div class="text-white text-sm font-medium mb-2 flex items-center">
+              <span class="animate-pulse mr-2">🔴</span>
+              Live Transcript:
+            </div>
+            <div class="text-white text-sm font-mono leading-relaxed min-h-16 max-h-32 overflow-y-auto">
+              {{ speechInterface.transcript || 'Listening for speech...' }}
+            </div>
+          </div>
+
+          <!-- Next Steps -->
+          <div *ngIf="speechInterface.isRecording" class="bg-purple-800 bg-opacity-30 rounded-lg p-4 text-sm">
+            <h4 class="font-semibold mb-2 text-purple-200">🚀 Next Step:</h4>
+            <p class="text-purple-100">
+              Speech recognition is active! Close this modal and click 
+              <strong>"Display Speech on Screen"</strong> to show transcripts on your holographic display.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
