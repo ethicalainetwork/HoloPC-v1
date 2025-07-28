@@ -2,8 +2,8 @@ services:
 
   # angular frontend
   holopcAngular:
-    container_name: holopcAngular
-    image: holopcAngular:1.0.0
+    container_name: holopc_angular
+    image: holopc_angular:1.0.0
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -16,7 +16,7 @@ services:
   # python backend
   holopcWhisper:
     container_name: holopcWhisper
-    image: holopcWhisper:1.0.0
+    image: holopc_whisper:1.0.0
     build: 
       context: ./backend
       dockerfile: Dockerfile
