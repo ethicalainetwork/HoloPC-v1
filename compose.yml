@@ -15,7 +15,7 @@ services:
 
   # python backend
   holopcWhisper:
-    container_name: holopcWhisper
+    container_name: holopc_whisper
     image: holopc_whisper:1.0.0
     build: 
       context: ./backend
