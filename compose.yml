@@ -13,9 +13,6 @@ services:
     depends_on:
       - holopcWhisper
 
-    networks:
-      - internal
-
   # python backend
   holopcWhisper:
     container_name: holopcWhisper
