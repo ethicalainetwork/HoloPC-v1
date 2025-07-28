@@ -1,0 +1,28 @@
+services:
+
+  # angular frontend
+  holopcAngular:
+    container_name: holopcAngular
+    image: holopcAngular:1.0.0
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - 127.0.0.1:3000:3000
+    
+    depends_on:
+      - holopcWhisper
+
+    networks:
+      - internal
+
+  # python backend
+  holopcWhisper:
+    container_name: holopcWhisper
+    image: holopcWhisper:1.0.0
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - 127.0.0.1:8765:8765
+    
