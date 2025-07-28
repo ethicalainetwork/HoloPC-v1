@@ -23,4 +23,4 @@ COPY . .
 RUN npm run build 
 
 
-CMD ["node", "server/server.js;"]
+CMD ["node", "server/server.js"]
